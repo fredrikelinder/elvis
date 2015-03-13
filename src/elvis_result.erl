@@ -109,7 +109,7 @@ print(#{file := File, rules := Rules}) ->
                  fail -> "{{red-bold}}FAIL"
              end,
 
-    elvis_utils:notice("# ~s [~s{{white-bold}}]", [Path, Status]),
+    elvis_utils:notice("# ~s [~s]", [Path, Status]),
     print(Rules);
 %% Rule
 print(#{items := []}) ->
