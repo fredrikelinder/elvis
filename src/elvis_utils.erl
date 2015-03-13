@@ -137,7 +137,7 @@ notice(Message) ->
 
 -spec notice(string(), [term()]) -> ok.
 notice(Message, Args) ->
-    ColoredMessage = "{{white-bold}}" ++ Message ++ "{{reset}}~n",
+    ColoredMessage = Message ++ "{{reset}}~n",
     print(ColoredMessage, Args).
 
 
