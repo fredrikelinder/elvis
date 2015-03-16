@@ -7,6 +7,7 @@
          no_tabs/3,
          no_spaces/3,
          no_trailing_whitespace/3,
+         no_macros/3,
          macro_names/3,
          macro_module_names/3,
          operator_spaces/3,
@@ -23,7 +24,9 @@
          max_module_length/3,
          max_function_length/3,
          no_debug_call/3,
-         no_nested_try_catch/3
+         no_nested_try_catch/3,
+         module_record_and_state_type/3,
+         no_spec_with_records/3
         ]).
 
 -define(LINE_LENGTH_MSG, "Line ~p is too long: ~s.").
@@ -113,6 +116,17 @@
 
 -define(NO_NESTED_TRY_CATCH,
         "Nested try...catch block starting at line ~p.").
+
+-define(NO_MACROS_MSG,
+        "Don't use macros (use an inlined function instead)").
+
+-define(MODULE_RECORD_MISSING_MSG,
+        "This module implements an OTP behavior but is missing "
+        "a '?MODULE' record (the \"state\" record)").
+
+-define(STATE_TYPE_MISSING_MSG,
+        "This module implements an OTP behavior but is missing "
+        "a 'state' type (-type state() :: #?MODULE{}.).").
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Rules
@@ -209,9 +223,13 @@ no_trailing_whitespace(_Config, Target, RuleConfig) ->
     elvis_utils:check_lines(Src, fun check_no_trailing_whitespace/3,
                             RuleConfig).
 
--spec macro_names(elvis_config:config(),
-                  elvis_file:file(),
-                  empty_rule_config()) ->
+-spec no_macros(elvis_config:config(), elvis_file:file(), [term()]) ->
+    [elvis_result:item()].
+no_macros(_Config, Target, _RuleConfig) ->
+    {Src, _} = elvis_file:src(Target),
+    elvis_utils:check_lines(Src, fun check_no_macros/3, [Regex]).
+
+-spec macro_names(elvis_config:config(), elvis_file:file(), [term()]) ->
     [elvis_result:item()].
 macro_names(_Config, Target, _RuleConfig) ->
     {Src, _} = elvis_file:src(Target),
@@ -399,6 +417,31 @@ state_record_and_type(Config, Target, _RuleConfig) ->
                 {true, true} -> [];
                 {false, _} ->
                     Msg = ?STATE_RECORD_MISSING_MSG,
+                    Result = elvis_result:new(item, Msg, [], 1),
+                    [Result];
+                {true, false} ->
+                    Msg = ?STATE_TYPE_MISSING_MSG,
+                    Result = elvis_result:new(item, Msg, [], 1),
+                    [Result]
+            end;
+        false ->
+            []
+    end.
+
+-spec module_record_and_state_type(
+        elvis_config:config(),
+        elvis_file:file(),
+        [list()]) ->
+    [elvis_result:item()].
+module_record_and_state_type(Config, Target, _RuleConfig) ->
+    {Root, _} = elvis_file:parse_tree(Config, Target),
+    case is_otp_module(Root) of
+        true ->
+            case {has_module_record(Root), has_state_type(Root)} of
+                {true, true} ->
+                    [];
+                {false, _} ->
+                    Msg = ?MODULE_RECORD_MISSING_MSG,
                     Result = elvis_result:new(item, Msg, [], 1),
                     [Result];
                 {true, false} ->
@@ -735,6 +778,20 @@ check_no_trailing_whitespace(Line, Num, RuleConfig) ->
 
 %% Macro Names
 
+-spec check_no_macros(binary(), integer(), [term()]) ->
+    no_result | {ok, elvis_result:item()}.
+check_no_macros(Line, Num, [NameRegex]) ->
+    {ok, Regex} = re:compile("^ *[-]define *[(]([^,(]+)"),
+    case re:run(Line, Regex, [{capture, all_but_first, list}]) of
+        nomatch ->
+            no_result;
+        {match, [MacroName]} ->
+            Msg = ?NO_MACROS_MSG,
+            Info = [MacroName, Num],
+            Result = elvis_result:new(item, Msg, Info, Num),
+            {ok, Result};
+    end.
+
 -spec check_macro_names(binary(), integer(), [term()]) ->
     no_result | {ok, elvis_result:item()}.
 check_macro_names(Line, Num, _Args) ->
@@ -977,6 +1034,18 @@ has_state_record(Root) ->
                     and (state == ktn_code:attr(name, Node))
         end,
     case elvis_code:find(IsStateRecord, Root) of
+        [] -> false;
+        _ -> true
+    end.
+
+-spec has_module_record(ktn_code:tree_node()) -> boolean().
+has_module_record(Root) ->
+    IsModuleRecord =
+        fun(Node) ->
+                (record_attr == ktn_code:type(Node))
+                    and (Module == ktn_code:attr(name, Node))
+        end,
+    case elvis_code:find(IsModuleRecord, Root) of
         [] -> false;
         _ -> true
     end.
