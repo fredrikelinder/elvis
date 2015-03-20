@@ -124,10 +124,6 @@
         "This module implements an OTP behavior but is missing "
         "a '?MODULE' record (the \"state\" record)").
 
--define(STATE_TYPE_MISSING_MSG,
-        "This module implements an OTP behavior but is missing "
-        "a 'state' type (-type state() :: #?MODULE{}.).").
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Rules
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -227,7 +223,7 @@ no_trailing_whitespace(_Config, Target, RuleConfig) ->
     [elvis_result:item()].
 no_macros(_Config, Target, _RuleConfig) ->
     {Src, _} = elvis_file:src(Target),
-    elvis_utils:check_lines(Src, fun check_no_macros/3, [Regex]).
+    elvis_utils:check_lines(Src, fun check_no_macros/3, []).
 
 -spec macro_names(elvis_config:config(), elvis_file:file(), [term()]) ->
     [elvis_result:item()].
@@ -385,24 +381,35 @@ no_behavior_info(Config, Target, _RuleConfig) ->
                                module_naming_convention_config()) ->
     [elvis_result:item()].
 module_naming_convention(Config, Target, RuleConfig) ->
-    Regex = maps:get(regex, RuleConfig, ".*"),
+    {Appname, Target2} = appname_character_class(Target),
+    Regex1 = maps:get(regex, RuleConfig, ".*"),
+    Regex2 = re:replace(Regex1, "[[]:appname:[]]", Appname, [global,{return,list}]),
     IgnoreModules = maps:get(ignore, RuleConfig, []),
 
-    {Root, _} = elvis_file:parse_tree(Config, Target),
+    {Root, _} = elvis_file:parse_tree(Config, Target2),
     ModuleName = elvis_code:module_name(Root),
 
     case lists:member(ModuleName, IgnoreModules) of
         false ->
             ModuleNameStr = atom_to_list(ModuleName),
-            case re:run(ModuleNameStr, Regex) of
+            case re:run(ModuleNameStr, Regex2) of
                 nomatch ->
                     Msg = ?MODULE_NAMING_CONVENTION_MSG,
-                    Info = [ModuleNameStr, Regex],
+                    Info = [ModuleNameStr, Regex2],
                     Result = elvis_result:new(item, Msg, Info, 1),
                     [Result];
                 {match, _} -> []
             end;
         true -> []
+    end.
+
+-spec appname_character_class(elvis_file:file()) -> string().
+appname_character_class(Target) ->
+    case elvis_file:appname(Target) of
+        undefined ->
+            {"", Target};
+        {Atom, Target2} ->
+            {atom_to_list(Atom), Target2}
     end.
 
 -spec state_record_and_type(elvis_config:config(),
@@ -437,7 +444,8 @@ module_record_and_state_type(Config, Target, _RuleConfig) ->
     {Root, _} = elvis_file:parse_tree(Config, Target),
     case is_otp_module(Root) of
         true ->
-            case {has_module_record(Root), has_state_type(Root)} of
+            Module = elvis_file:module(Target),
+            case {has_module_record(Root, Module), has_state_type(Root)} of
                 {true, true} ->
                     [];
                 {false, _} ->
@@ -780,7 +788,7 @@ check_no_trailing_whitespace(Line, Num, RuleConfig) ->
 
 -spec check_no_macros(binary(), integer(), [term()]) ->
     no_result | {ok, elvis_result:item()}.
-check_no_macros(Line, Num, [NameRegex]) ->
+check_no_macros(Line, Num, _Args) ->
     {ok, Regex} = re:compile("^ *[-]define *[(]([^,(]+)"),
     case re:run(Line, Regex, [{capture, all_but_first, list}]) of
         nomatch ->
@@ -789,7 +797,7 @@ check_no_macros(Line, Num, [NameRegex]) ->
             Msg = ?NO_MACROS_MSG,
             Info = [MacroName, Num],
             Result = elvis_result:new(item, Msg, Info, Num),
-            {ok, Result};
+            {ok, Result}
     end.
 
 -spec check_macro_names(binary(), integer(), [term()]) ->
@@ -1038,8 +1046,8 @@ has_state_record(Root) ->
         _ -> true
     end.
 
--spec has_module_record(ktn_code:tree_node()) -> boolean().
-has_module_record(Root) ->
+-spec has_module_record(ktn_code:tree_node(), module()) -> boolean().
+has_module_record(Root, Module) ->
     IsModuleRecord =
         fun(Node) ->
                 (record_attr == ktn_code:type(Node))
