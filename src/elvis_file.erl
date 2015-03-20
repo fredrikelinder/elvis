@@ -1,6 +1,8 @@
 -module(elvis_file).
 
 -export([
+         appname/1,
+         module/1,
          src/1,
          path/1,
          parse_tree/2,
@@ -13,11 +15,46 @@
 
 -export_type([file/0]).
 
--type file() :: #{path => string(), content => binary()}.
+-type file() :: #{path => string(), content => binary(), app => atom()}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Public
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% @doc Returns the application name of the app the file resides in.
+-spec appname(file()) ->
+    undefined | {atom(), file()}.
+appname(File = #{appname := Appname}) ->
+    {Appname, File};
+appname(File = #{path := Path}) ->
+    appname(filename:dirname(Path), File).
+
+appname(Dir, File) when is_list(Dir) ->
+    Parts = filename:split(Dir),
+    appname(lists:member(lists:last(Parts), ["src", "test", "priv"]), filename:dirname(Dir), File).
+
+appname(true, Appdir, File) ->
+    case
+        {filelib:wildcard(filename:join(Appdir, src, "*.app.src")),
+         filelib:wildcard(filename:join(Appdir, ebin, "*.app"))}
+    of
+        {[AppSrc], _} -> appname2(file:consult(AppSrc), File);
+        {[], [App]} -> appname2(file:consult(App), File);
+        {[], []} -> undefined
+    end.
+
+
+appname2({ok, [{application, Appname, _}]}, File) ->
+    {Appname, File#{appname => Appname}}.
+
+%% @doc Returns the expected module name given an .erl source file
+-spec module(file()) -> {module(), file()}.
+module(File = #{module := Module}) ->
+    {Module, File};
+module(File = #{path := Path}) ->
+    Basename = filename:basename(Path, ".erl"),
+    Module = list_to_atom(Basename),
+    {Module, File#{module => Module}}.
 
 %% @doc Returns a tuple with the contents of the file and the file itself.
 -spec src(file()) ->
