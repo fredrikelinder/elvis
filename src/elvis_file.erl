@@ -35,8 +35,8 @@ appname(Dir, File) when is_list(Dir) ->
 
 appname(true, Appdir, File) ->
     case
-        {filelib:wildcard(filename:join(Appdir, src, "*.app.src")),
-         filelib:wildcard(filename:join(Appdir, ebin, "*.app"))}
+        {filelib:wildcard(filename:join([Appdir, src, "*.app.src"])),
+         filelib:wildcard(filename:join([Appdir, ebin, "*.app"]))}
     of
         {[AppSrc], _} -> appname2(file:consult(AppSrc), File);
         {[], [App]} -> appname2(file:consult(App), File);

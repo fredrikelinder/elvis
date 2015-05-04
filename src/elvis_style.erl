@@ -118,7 +118,7 @@
         "Nested try...catch block starting at line ~p.").
 
 -define(NO_MACROS_MSG,
-        "Don't use macros (use an inlined function instead)").
+        "Don't use macros; '~s' on line ~p").
 
 -define(MODULE_RECORD_MISSING_MSG,
         "This module implements an OTP behavior but is missing "
