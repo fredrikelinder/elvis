@@ -420,7 +420,7 @@ state_record_and_type(Config, Target, _RuleConfig) ->
     {Root, _} = elvis_file:parse_tree(Config, Target),
     case is_otp_module(Root) of
         true ->
-            case {has_state_record(Root), has_state_type(Root)} of
+            case {has_state_record(Root), has_state_type(Root, "#?MODULE{}")} of
                 {true, true} -> [];
                 {false, _} ->
                     Msg = ?STATE_RECORD_MISSING_MSG,
@@ -1068,6 +1068,16 @@ has_state_type(Root) ->
     elvis_code:find(IsStateType, Root) /= [].
 
 %% Spec includes records
+
+-spec has_state_type(ktn_code:tree_node(), string()) -> boolean().
+has_state_type(Root, Text) ->
+    IsStateType =
+        fun(Node) ->
+                (type_attr == ktn_code:type(Node))
+                    and (state == ktn_code:attr(name, Node))
+                    and (Text == ktn_code:attr(text, Node))
+        end,
+    elvis_code:find(IsStateType, Root) /= [].
 
 -spec spec_includes_record(ktn_code:tree_node()) -> boolean().
 spec_includes_record(Node) ->
