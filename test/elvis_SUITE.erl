@@ -20,6 +20,7 @@
          run_webhook/1,
          run_webhook_ping/1,
          %% Utill & Config
+         appname_and_check_src/1,
          throw_configuration/1,
          find_file_and_check_src/1,
          invalid_file/1,
@@ -226,6 +227,16 @@ run_webhook_ping(_Config) ->
 
 %%%%%%%%%%%%%%%
 %%% Utils
+
+-spec appname_and_check_src(config()) -> any().
+appname_and_check_src(_Config) ->
+    Dirs = ["../../test"],
+
+    [SrcFile] = elvis_file:find_files(Dirs, "elvis.erl"),
+    {elvis, _} = elvis_file:appname(SrcFile),
+
+    [TestFile] = elvis_file:find_files(Dirs, ?MODULE_STRING".erl"),
+    {elvis, _} = elvis_file:appname(TestFile).
 
 -spec throw_configuration(config()) -> any().
 throw_configuration(_Config) ->

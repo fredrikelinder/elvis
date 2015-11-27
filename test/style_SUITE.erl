@@ -326,25 +326,31 @@ verify_module_naming_convention(_Config) ->
     ElvisConfig = elvis_config:default(),
     SrcDirs = elvis_config:dirs(ElvisConfig),
 
-    RuleConfig = #{regex => "^([a-z][a-z0-9]*_?)*$",
+    RuleConfig = #{regex => "^[:appname:]([a-z][a-z0-9]*_?)*$",
                    ignore => []},
 
-    PathPass = "pass_module_naming_convention.erl",
+    PathPass = "elvis_pass_module_naming_convention.erl",
     {ok, FilePass} = elvis_test_utils:find_file(SrcDirs, PathPass),
     [] =
-        elvis_style:module_naming_convention(ElvisConfig, FilePass, RuleConfig),
+        elvis_style:module_naming_convention(
+          ElvisConfig, FilePass, RuleConfig),
 
-    PathFail = "fail_module_naming_1_convention_1.erl",
-    {ok, FileFail} = elvis_test_utils:find_file(SrcDirs, PathFail),
+    PathFail1 = "elvis_fail_module_naming_1_convention_1.erl",
+    {ok, FileFail1} = elvis_test_utils:find_file(SrcDirs, PathFail1),
     [_] =
-        elvis_style:module_naming_convention(ElvisConfig, FileFail, RuleConfig),
+        elvis_style:module_naming_convention(
+          ElvisConfig, FileFail1, RuleConfig),
+
+    PathFail2 = "fail_module_naming_1_convention_1.erl",
+    {ok, FileFail2} = elvis_test_utils:find_file(SrcDirs, PathFail2),
+    [_] =
+        elvis_style:module_naming_convention(
+          ElvisConfig, FileFail2, RuleConfig),
 
     RuleConfigIgnore =
         RuleConfig#{ignore => [fail_module_naming_1_convention_1]},
     [] = elvis_style:module_naming_convention(
-            ElvisConfig, FileFail, RuleConfigIgnore
-         ).
-
+           ElvisConfig, FileFail2, RuleConfigIgnore).
 
 -spec verify_state_record_and_type(config()) -> any().
 verify_state_record_and_type(_Config) ->
